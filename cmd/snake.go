@@ -176,6 +176,42 @@ func (d direction) String() string {
 	}
 }
 
+const capacity = boardSize * boardSize
+
+type ring struct {
+	positions [capacity]position
+
+	size int
+	h    int // head index
+	t    int // tail index
+}
+
+func newRing(head position) *ring {
+	r := &ring{
+		positions: [capacity]position{head},
+		h:         0,
+		t:         0,
+		size:      1,
+	}
+	return r
+}
+
+func (s *ring) head() position {
+	return s.positions[s.h]
+}
+
+func (s *ring) tail() position {
+	return s.positions[s.t]
+}
+
+// move makes position p the new head and shifts all segments by one removing
+// the last position. The last position is returned.
+func (s *ring) move(p position) position {
+}
+
+func (s *ring) grow(p position) {
+}
+
 type snake struct {
 	direction direction
 
