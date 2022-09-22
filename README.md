@@ -3,6 +3,9 @@
 
 Run the game: `go run cmd/snake.go`
 
+Build a MacOS .app: `make build-macos-app`. Open it with `open snake.app` or
+double click the icon in Finder.
+
 Requires Go and a C compiler because Ebiten needs a C compiler.
 
 ## Controls
