@@ -6,11 +6,13 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
+	"github.com/rhomel/snake/pkg/data"
 	"github.com/rhomel/snake/pkg/images"
 )
 
@@ -137,19 +139,19 @@ func (b *board) randomPoint() (int, int) {
 	return x, y
 }
 
+func (b *board) hasPosition(p data.Position) bool {
+	return p.X >= 0 && p.X < boardSize && p.Y >= 0 && p.Y < boardSize
+}
+
 type position struct {
 	x int
 	y int
 }
 
-func (p position) Draw(screen, tile *ebiten.Image, origin ebiten.GeoM) {
+func DrawPosition(p data.Position, screen, tile *ebiten.Image, origin ebiten.GeoM) {
 	screen.DrawImage(tile, &ebiten.DrawImageOptions{
-		GeoM: translateByTileSize(origin, p.x, p.y),
+		GeoM: translateByTileSize(origin, p.X, p.Y),
 	})
-}
-
-func (p position) IsOnBoard() bool {
-	return p.x >= 0 && p.x < boardSize && p.y >= 0 && p.y < boardSize
 }
 
 type direction int
@@ -176,57 +178,21 @@ func (d direction) String() string {
 	}
 }
 
-const capacity = boardSize * boardSize
-
-type ring struct {
-	positions [capacity]position
-
-	size int
-	h    int // head index
-	t    int // tail index
-}
-
-func newRing(head position) *ring {
-	r := &ring{
-		positions: [capacity]position{head},
-		h:         0,
-		t:         0,
-		size:      1,
-	}
-	return r
-}
-
-func (s *ring) head() position {
-	return s.positions[s.h]
-}
-
-func (s *ring) tail() position {
-	return s.positions[s.t]
-}
-
-// move makes position p the new head and shifts all segments by one removing
-// the last position. The last position is returned.
-func (s *ring) move(p position) position {
-}
-
-func (s *ring) grow(p position) {
-}
-
 type snake struct {
 	direction direction
 
-	last position
-	body []position
+	last data.Position
+	body *data.Ring
 
 	alive bool
 }
 
 func NewSnake() *snake {
 	center := int(boardSize / 2)
-	head := position{center, center}
+	head := data.Position{center, center}
 	s := &snake{
 		direction: left,
-		body:      []position{head},
+		body:      data.NewRing(head, boardSize*boardSize),
 		last:      head,
 		alive:     true,
 	}
@@ -234,38 +200,28 @@ func NewSnake() *snake {
 }
 
 func (s *snake) Size() int {
-	return len(s.body)
+	return s.body.GetSize()
 }
 
 func (s *snake) IsAt(x, y int) bool {
-	head := s.head()
-	if head.x == x && head.y == y {
-		return true
-	}
-	if s.IsBodyAt(x, y) {
-		return true
-	}
-	return false
-}
-
-func (s *snake) IsBodyAt(x, y int) bool {
-	for i := 1; i < len(s.body); i++ {
-		if s.body[i].x == x && s.body[i].y == y {
-			return true
-		}
-	}
-	return false
+	return s.body.HasPosition(data.Position{x, y})
 }
 
 func (s *snake) Draw(screen *ebiten.Image, origin ebiten.GeoM) {
-	for _, bodySegment := range s.body {
-		bodySegment.Draw(screen, bodyTile, origin)
+	//	start := time.Now()
+	//	defer func() {
+	//		end := time.Now()
+	//		duration := end.Sub(start)
+	//		log.Println("snake draw duration:", duration.String())
+	//	}()
+	for i := 1; i < s.body.GetSize(); i++ {
+		DrawPosition(s.body.Get(i), screen, bodyTile, origin)
 	}
-	s.head().Draw(screen, headTile, origin)
+	DrawPosition(s.body.GetHead(), screen, headTile, origin)
 }
 
 func (s *snake) SetDirection(d direction) {
-	if len(s.body) > 1 && isOppositeDirection(s.direction, d) {
+	if s.body.GetSize() > 1 && isOppositeDirection(s.direction, d) {
 		// reject going the direction of the body if longer than 1
 		return
 	}
@@ -288,52 +244,44 @@ func isOppositeDirection(current, desired direction) bool {
 	return false
 }
 
-// slither advances the snake one position in the current direction
-func (s *snake) slither() bool {
-	next := s.getNextPosition()
-	if !next.IsOnBoard() {
-		return false
-	}
-	s.last = s.tail()
-	s.body = append([]position{next}, s.body[:len(s.body)-1]...)
-	if s.IsBodyAt(next.x, next.y) {
-		return false
-	}
-	return true
-}
-
 func (s *snake) move(board *board) {
-	s.alive = s.slither()
-	head := s.head()
-	if board.IsFood(head.x, head.y) {
-		board.RemoveFood(head.x, head.y)
-		s.grow()
+	//	start := time.Now()
+	//	defer func() {
+	//		end := time.Now()
+	//		duration := end.Sub(start)
+	//		log.Println("move duration:", duration.String())
+	//	}()
+	next := s.getNextPosition()
+	if !board.hasPosition(next) {
+		s.alive = false
+		return
+	}
+
+	last := s.body.Move(next)
+
+	if s.body.IsHeadOnBody() {
+		s.alive = false
+		return
+	}
+
+	head := s.body.GetHead()
+	if board.IsFood(head.X, head.Y) {
+		board.RemoveFood(head.X, head.Y)
+		s.body.Grow(last)
 	}
 }
 
-func (s *snake) grow() {
-	s.body = append(s.body, s.last)
-}
-
-func (s *snake) head() position {
-	return s.body[0]
-}
-
-func (s *snake) tail() position {
-	return s.body[len(s.body)-1]
-}
-
-func (s *snake) getNextPosition() position {
-	next := s.head()
+func (s *snake) getNextPosition() data.Position {
+	next := s.body.GetHead()
 	switch s.direction {
 	case left:
-		next.x--
+		next.X--
 	case right:
-		next.x++
+		next.X++
 	case up:
-		next.y--
+		next.Y--
 	case down:
-		next.y++
+		next.Y++
 	}
 	return next
 }

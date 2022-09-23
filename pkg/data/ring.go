@@ -1,10 +1,12 @@
 package data
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Position struct {
-	x int
-	y int
+	X int
+	Y int
 }
 
 type Ring struct {
@@ -59,7 +61,7 @@ func (r *Ring) positionsString() string {
 		if s != "" {
 			s += " "
 		}
-		s += fmt.Sprintf("(%d,%d)", p.x, p.y)
+		s += fmt.Sprintf("(%d,%d)", p.X, p.Y)
 	}
 	return s
 }
@@ -109,10 +111,24 @@ func (r *Ring) Grow(p Position) {
 }
 
 func (r *Ring) IsHeadOnBody() bool {
-	tail := r.tail()
-	for i := r.head; i != tail; i = index(r.head, i+1, r.size) {
-		if r.positions[r.head].x == r.positions[i].x &&
-			r.positions[r.head].y == r.positions[i].y {
+	if r.size == 1 {
+		return false
+	}
+	for i := 1; i < r.size; i++ {
+		idx := index(r.head, i, r.size)
+		if r.positions[r.head].X == r.positions[idx].X &&
+			r.positions[r.head].Y == r.positions[idx].Y {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Ring) HasPosition(p Position) bool {
+	for i := 0; i < r.size; i++ {
+		idx := index(r.head, i, r.size)
+		if r.positions[p.X].X == r.positions[idx].X &&
+			r.positions[p.Y].Y == r.positions[idx].Y {
 			return true
 		}
 	}
