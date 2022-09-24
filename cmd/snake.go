@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -18,6 +17,9 @@ import (
 
 const (
 	title = "Snake"
+
+	TicksPerSecond = 60
+	MovesPerSecond = 5
 
 	boardSize = 20
 
@@ -179,7 +181,8 @@ func (d direction) String() string {
 }
 
 type snake struct {
-	direction direction
+	lastDirection    direction
+	currentDirection direction
 
 	last data.Position
 	body *data.Ring
@@ -191,10 +194,10 @@ func NewSnake() *snake {
 	center := int(boardSize / 2)
 	head := data.Position{center, center}
 	s := &snake{
-		direction: left,
-		body:      data.NewRing(head, boardSize*boardSize),
-		last:      head,
-		alive:     true,
+		currentDirection: left,
+		body:             data.NewRing(head, boardSize*boardSize),
+		last:             head,
+		alive:            true,
 	}
 	return s
 }
@@ -221,11 +224,11 @@ func (s *snake) Draw(screen *ebiten.Image, origin ebiten.GeoM) {
 }
 
 func (s *snake) SetDirection(d direction) {
-	if s.body.GetSize() > 1 && isOppositeDirection(s.direction, d) {
+	if s.body.GetSize() > 1 && isOppositeDirection(s.lastDirection, d) {
 		// reject going the direction of the body if longer than 1
 		return
 	}
-	s.direction = d
+	s.currentDirection = d
 }
 
 func isOppositeDirection(current, desired direction) bool {
@@ -258,6 +261,7 @@ func (s *snake) move(board *board) {
 	}
 
 	last := s.body.Move(next)
+	s.lastDirection = s.currentDirection
 
 	if s.body.IsHeadOnBody() {
 		s.alive = false
@@ -273,7 +277,7 @@ func (s *snake) move(board *board) {
 
 func (s *snake) getNextPosition() data.Position {
 	next := s.body.GetHead()
-	switch s.direction {
+	switch s.currentDirection {
 	case left:
 		next.X--
 	case right:
@@ -294,17 +298,20 @@ const (
 )
 
 type Game struct {
-	state  state
-	board  *board
-	player *snake
-	ticks  int
+	state    state
+	board    *board
+	player   *snake
+	ticks    int
+	moveTick int
 }
 
 func NewGame() *Game {
 	return &Game{
-		state:  playing,
-		board:  emptyBoard(),
-		player: NewSnake(),
+		state:    playing,
+		board:    emptyBoard(),
+		player:   NewSnake(),
+		ticks:    0,
+		moveTick: TicksPerSecond / MovesPerSecond,
 	}
 }
 
@@ -312,6 +319,7 @@ func (game *Game) Restart() {
 	game.board = emptyBoard()
 	game.player = NewSnake()
 	game.state = playing
+	game.ticks = 0
 }
 
 func (game *Game) DrawScore(screen *ebiten.Image) {
@@ -344,7 +352,7 @@ func (game *Game) UpdateBoard() {
 	}
 }
 
-func (game *Game) UpdatePlay() {
+func (game *Game) UpdateDirection() {
 	check := inpututil.IsKeyJustPressed
 	switch {
 	case check(ebiten.KeyArrowUp):
@@ -364,36 +372,53 @@ func (game *Game) UpdatePlay() {
 	case check(ebiten.KeyD):
 		game.player.SetDirection(right)
 	}
+}
+
+func (game *Game) isMoveTick() bool {
+	return game.ticks%game.moveTick == 0
+}
+
+func (game *Game) UpdatePlay() {
+	if !game.isMoveTick() {
+		return
+	}
 	game.player.move(game.board)
 	if !game.player.alive {
 		game.state = gameover
 	}
-	game.ticks++
 	game.UpdateBoard()
 }
 
 func (game *Game) Update() error {
 	check := inpututil.IsKeyJustPressed
 	if game.state == playing {
+		game.UpdateDirection()
 		game.UpdatePlay()
+		game.ticks++
 	}
 	if game.state == gameover {
 		if check(ebiten.KeySpace) {
 			game.Restart()
 		}
+		if check(ebiten.KeyQ) {
+			quit()
+		}
 	}
 	if check(ebiten.KeyEscape) {
-		log.Println("quit")
-		os.Exit(0)
+		quit()
 	}
-	//log.Println("direction:", game.player.direction.String())
 	return nil
+}
+
+func quit() {
+	log.Println("quit")
+	os.Exit(0)
 }
 
 func main() {
 	ebiten.SetWindowSize(windowWidth, windowHeight)
 	ebiten.SetWindowTitle(title)
-	ebiten.SetTPS(10)
+	ebiten.SetTPS(TicksPerSecond)
 	game := NewGame()
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
