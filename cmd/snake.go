@@ -18,8 +18,8 @@ import (
 const (
 	title = "Snake"
 
-	TicksPerSecond = 60
-	MovesPerSecond = 5
+	TicksPerSecond = 120
+	MovesPerSecond = 10
 
 	boardSize = 20
 
